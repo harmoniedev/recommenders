@@ -26,7 +26,7 @@ logger = logging.getLogger()
 class SARSingleNode:
     """Simple Algorithm for Recommendations (SAR) implementation
     
-    SAR is a fast scalable adaptive algorithm for personalized recommendations based on user transaction history 
+    SAR is a fast scalable adaptive algorithm for personalized recommendations based on user transaction history (test)
     and items description. The core idea behind SAR is to recommend items like those that a user already has 
     demonstrated an affinity to. It does this by 1) estimating the affinity of users for items, 2) estimating 
     similarity across items, and then 3) combining the estimates to generate a set of recommendations for a given user. 
