@@ -15,13 +15,17 @@ from reco_utils.common.python_utils import (
 )
 from reco_utils.common import constants
 
-
+DEF_SIMTYPE = "default_simtype"
 COOCCUR = "cooccurrence"
 JACCARD = "jaccard"
 LIFT = "lift"
 
 logger = logging.getLogger()
 
+
+class MyObj():
+    def __init__(self):
+        pass
 
 class SARSingleNode:
     """Simple Algorithm for Recommendations (SAR) implementation
@@ -39,7 +43,8 @@ class SARSingleNode:
         col_rating=constants.DEFAULT_RATING_COL,
         col_timestamp=constants.DEFAULT_TIMESTAMP_COL,
         col_prediction=constants.DEFAULT_PREDICTION_COL,
-        similarity_type=JACCARD,
+        similarity_type=DEF_SIMTYPE,
+        score_func=None,
         time_decay_coefficient=30,
         time_now=None,
         timedecay_formula=False,
@@ -55,6 +60,7 @@ class SARSingleNode:
             col_timestamp (str): timestamp column name
             col_prediction (str): prediction column name
             similarity_type (str): ['cooccurrence', 'jaccard', 'lift'] option for computing item-item similarity
+            score_func (function): customize the matrix multiplication (affinity and similarity). Allows to extend SAR with custom similarity and weighting schemes
             time_decay_coefficient (float): number of days till ratings are decayed by 1/2
             time_now (int | None): current time for time decay calculation
             timedecay_formula (bool): flag to apply time decay
@@ -67,11 +73,20 @@ class SARSingleNode:
         self.col_timestamp = col_timestamp
         self.col_prediction = col_prediction
 
+        self.score_func = score_func
+        if self.score_func != None and similarity_type != DEF_SIMTYPE:
+            raise ValueError(
+                'Similarity type cannot be used when score_func is used'
+            ) 
+        if similarity_type == DEF_SIMTYPE:
+             similarity_type = JACCARD
+             
         if similarity_type not in [COOCCUR, JACCARD, LIFT]:
             raise ValueError(
                 'Similarity type must be one of ["cooccurrence" | "jaccard" | "lift"]'
             )
         self.similarity_type = similarity_type
+        
         self.time_decay_half_life = (
             time_decay_coefficient * 24 * 60 * 60
         )  # convert to seconds
@@ -245,6 +260,8 @@ class SARSingleNode:
         logger.info("Building user affinity sparse matrix")
         self.user_affinity = self.compute_affinity_matrix(df=temp_df, rating_col=self.col_rating)
 
+        # TODO: if self.score_func is None
+        
         # calculate item co-occurrence
         logger.info("Calculating item co-occurrence")
         item_cooccurrence = self.compute_coocurrence_matrix(df=temp_df)
@@ -295,7 +312,16 @@ class SARSingleNode:
 
         # calculate raw scores with a matrix multiplication
         logger.info("Calculating recommendation scores")
-        test_scores = self.user_affinity[user_ids, :].dot(self.item_similarity)
+        if self.score_func != None:
+             prms = MyObj()
+             prms.user_affinity = self.user_affinity
+             prms.user_indexes  = user_ids
+             prms.index2item = self.index2item
+             prms.item_similarity = self.item_similarity
+             test_scores = self.score_func(prms)
+        else:
+             test_scores = self.user_affinity[user_ids, :].dot(self.item_similarity)
+        
 
         # ensure we're working with a dense ndarray
         if isinstance(test_scores, sparse.spmatrix):
